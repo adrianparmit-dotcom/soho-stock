@@ -8,6 +8,7 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import {
   PackagePlus,
+  DatabaseZap,
   Scissors,
   ArrowRightLeft,
   Boxes,
@@ -40,6 +41,7 @@ const reportes: ModuleCard[] = [
 const configuracion: ModuleCard[] = [
   { href: '/configuracion/proveedores', label: 'Proveedores', icon: <Truck size={32} />, desc: 'Margen, CUIT y contacto' },
   { href: '/configuracion/usuarios', label: 'Usuarios', icon: <Users size={32} />, desc: 'Accesos y roles del equipo' },
+  { href: '/operaciones/stock-inicial', label: 'Stock inicial', icon: <DatabaseZap size={32} />, desc: 'Carga masiva desde DUX · Solo admin' },
 ];
 
 export default function HomePage() {

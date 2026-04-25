@@ -92,6 +92,7 @@ export default function RecepcionPage() {
   const [textoFactura, setTextoFactura] = useState('');
   const [sucursales, setSucursales] = useState<any[]>([]);
   const [sucursalId, setSucursalId] = useState<number | null>(null);
+  const [deposito, setDeposito] = useState<string>('LOCAL'); // LOCAL | PIEZA | LOCAL2 | DEP_LOCAL2
 
   const [parseError, setParseError] = useState('');
   const [parseWarnings, setParseWarnings] = useState<string[]>([]);
@@ -174,6 +175,7 @@ export default function RecepcionPage() {
       productosNuevos,
       parseWarnings,
       confirmadoVencidos,
+      deposito,
     };
     try {
       const { data: user } = await supabase.auth.getUser();
@@ -223,6 +225,7 @@ export default function RecepcionPage() {
     setProductosNuevos(e.productosNuevos || []);
     setParseWarnings(e.parseWarnings || []);
     setConfirmadoVencidos(e.confirmadoVencidos || false);
+    setDeposito(e.deposito || (data.sucursal_id === 1 ? 'LOCAL' : 'LOCAL2'));
     setBorradorId(id);
     setSucursalId(data.sucursal_id);
     setPaso('preview');
@@ -523,6 +526,7 @@ export default function RecepcionPage() {
               fecha_vencimiento: l.vencimiento,
               costo: f.precio_unitario,
               tipo_lote: tipo,
+              deposito: deposito,
             })
             .select('id')
             .single();
@@ -850,10 +854,40 @@ export default function RecepcionPage() {
       <div className="max-w-3xl mx-auto px-4 py-6 space-y-6">
         <SucursalPicker
           value={sucursalId}
-          onChange={setSucursalId}
+          onChange={(id) => {
+            setSucursalId(id);
+            setDeposito(id === 1 ? 'LOCAL' : 'LOCAL2');
+          }}
           sucursales={sucursales}
           label="Sucursal de destino"
         />
+
+        {/* Selector de depósito */}
+        {sucursalId && (
+          <div>
+            <label className="block text-xs uppercase tracking-wide text-neutral-400 mb-2">
+              Depósito de destino
+            </label>
+            <div className="flex gap-2">
+              {(sucursalId === 1
+                ? [{ id: 'LOCAL', label: 'LOCAL (frente)' }, { id: 'PIEZA', label: 'PIEZA (depósito)' }]
+                : [{ id: 'LOCAL2', label: 'LOCAL 2 (frente)' }, { id: 'DEP_LOCAL2', label: 'DEPÓSITO LOCAL 2' }]
+              ).map(d => (
+                <button
+                  key={d.id}
+                  onClick={() => setDeposito(d.id)}
+                  className={`flex-1 py-2.5 px-3 rounded-xl font-semibold text-sm transition ${
+                    deposito === d.id
+                      ? 'bg-accent text-black'
+                      : 'bg-bg-card border border-border text-neutral-300 hover:border-accent/40'
+                  }`}
+                >
+                  {d.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Borradores disponibles */}
         {borradoresDisponibles.length > 0 && (
