@@ -7,7 +7,7 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { Card } from '@/components/ui/Card';
 import { formatMoney, formatDate } from '@/lib/utils/format';
 import { getExpirationStatus, calcularTransferenciasRecomendadas, VENC_SIN_FECHA } from '@/lib/business/stock';
-import { Search, Scale, Package, AlertTriangle, ArrowRightLeft } from 'lucide-react';
+import { Search, Scale, Package, AlertTriangle, ArrowRightLeft, Scissors } from 'lucide-react';
 
 type Filtro = 'todos' | 'rojo' | 'naranja' | 'amarillo' | 'verde';
 type TipoView = 'venta' | 'granel' | 'alertas';
@@ -183,7 +183,9 @@ export default function StockPage() {
                             {esGranel && <span className="text-[10px] uppercase font-bold bg-accent/20 text-accent px-1.5 py-0.5 rounded inline-flex items-center gap-1"><Scale size={9}/> granel</span>}
                             {sem.esInicial && <span className="text-[10px] uppercase font-bold bg-neutral-700 text-neutral-400 px-1.5 py-0.5 rounded">Stock inicial</span>}
                           </div>
-                          <div className="font-medium text-sm truncate">{r.producto?.nombre}</div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-sm truncate">{r.producto?.nombre}</span>
+                          </div>
                           <div className="text-xs text-neutral-400 mt-0.5">
                             {sem.esInicial ? 'Vencimiento no registrado' : `Vence ${formatDate(r.fecha_vencimiento)}`}
                             {r.costo > 0 && ` · Costo ${formatMoney(r.costo)}`}

@@ -23,7 +23,7 @@ export default function ProveedoresPage() {
     setLoading(true);
     const { data } = await supabase
       .from('proveedores')
-      .select('id, nombre, margen_pct, cuit, contacto, notas')
+      .select('id, nombre, margen_pct, cuit, contacto, notas, granel_por_defecto')
       .order('nombre');
     setProveedores(data || []);
 
@@ -83,12 +83,17 @@ export default function ProveedoresPage() {
         cuit: cambios.cuit !== undefined ? (cambios.cuit || null) : p.cuit,
         contacto: cambios.contacto !== undefined ? (cambios.contacto || null) : p.contacto,
         notas: cambios.notas !== undefined ? (cambios.notas || null) : p.notas,
+        granel_por_defecto: cambios.granel_por_defecto !== undefined ? cambios.granel_por_defecto : (p.granel_por_defecto || false),
       })
       .eq('id', p.id);
 
     setGuardando((prev) => ({ ...prev, [p.id]: false }));
     if (error) {
-      alert('Error: ' + error.message);
+      if (error.message.includes('unique') || error.message.includes('duplicate')) {
+        alert('Error: ese CUIT ya está asignado a otro proveedor.');
+      } else {
+        alert('Error al guardar: ' + error.message);
+      }
       return;
     }
     // Actualizar local

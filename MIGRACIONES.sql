@@ -108,3 +108,13 @@ CREATE INDEX IF NOT EXISTS ventas_historico_producto_idx ON ventas_historico(pro
 -- Debería aparecer: lotes, movimientos, productos, proveedores, 
 -- recepciones_borrador, remitos, sucursales, transferencias,
 -- transferencia_items, fraccionados, usuarios_app, ventas_historico
+
+-- ============================================================
+-- MIGRACIÓN 5: Campo no_fraccionar en productos
+-- y granel_por_defecto en proveedores
+-- ============================================================
+ALTER TABLE productos ADD COLUMN IF NOT EXISTS no_fraccionar boolean DEFAULT false;
+ALTER TABLE proveedores ADD COLUMN IF NOT EXISTS granel_por_defecto boolean DEFAULT false;
+
+-- Marcar Ankas como granel por defecto
+UPDATE proveedores SET granel_por_defecto = true WHERE cuit = '30716335808';

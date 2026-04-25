@@ -218,8 +218,6 @@ export default function RecepcionPage() {
     setTextoDux(data.texto_dux);
     setTextoFactura(data.texto_factura || '');
     setEncabezado(e.encabezado);
-    setProveedorId(e.proveedorId);
-    setProveedorNoEncontrado(e.proveedorNoEncontrado);
     setFormatoFactura(e.formatoFactura || '');
     setFilas(e.filas || []);
     setProductosNuevos(e.productosNuevos || []);
@@ -228,6 +226,27 @@ export default function RecepcionPage() {
     setDeposito(e.deposito || (data.sucursal_id === 1 ? 'LOCAL' : 'LOCAL2'));
     setBorradorId(id);
     setSucursalId(data.sucursal_id);
+
+    // Re-verificar el proveedor en la DB (puede haberse cargado el CUIT después)
+    const cuit = e.encabezado?.proveedor_cuit;
+    if (cuit) {
+      const { data: prov } = await supabase
+        .from('proveedores')
+        .select('id')
+        .eq('cuit', cuit)
+        .maybeSingle();
+      if (prov) {
+        setProveedorId(prov.id);
+        setProveedorNoEncontrado(false);
+      } else {
+        setProveedorId(null);
+        setProveedorNoEncontrado(true);
+      }
+    } else {
+      setProveedorId(e.proveedorId);
+      setProveedorNoEncontrado(e.proveedorNoEncontrado);
+    }
+
     setPaso('preview');
   };
 
@@ -280,35 +299,53 @@ export default function RecepcionPage() {
     // Proveedor
     let provId = null;
     let noEncontrado = false;
+    let granelPorDefecto = false;
     if (dux.proveedor_cuit) {
       const { data: prov } = await supabase
         .from('proveedores')
-        .select('id, nombre')
+        .select('id, nombre, granel_por_defecto')
         .eq('cuit', dux.proveedor_cuit)
         .maybeSingle();
-      if (prov) provId = prov.id;
-      else noEncontrado = true;
+      if (prov) {
+        provId = prov.id;
+        granelPorDefecto = prov.granel_por_defecto || false;
+      } else noEncontrado = true;
     } else {
       noEncontrado = true;
     }
 
-    // Productos
+    // Productos — incluir no_fraccionar
     const codigos = dux.productos.map((p) => p.codigo);
     const { data: prods } = await supabase
       .from('productos')
-      .select('id, codigo, nombre')
+      .select('id, codigo, nombre, no_fraccionar')
       .in('codigo', codigos);
-    const mapProd = new Map<string, number>();
-    (prods || []).forEach((p) => mapProd.set(p.codigo, p.id));
+    const mapProd = new Map<string, { id: number; no_fraccionar: boolean }>();
+    (prods || []).forEach((p) => mapProd.set(p.codigo, { id: p.id, no_fraccionar: p.no_fraccionar || false }));
 
     const nuevos: string[] = [];
     const filasIniciales: FilaRecepcion[] = dux.productos.map((p, idx) => {
-      const pid = mapProd.get(p.codigo) ?? null;
+      const prodInfo = mapProd.get(p.codigo) ?? null;
+      const pid = prodInfo?.id ?? null;
+      const noFraccionar = prodInfo?.no_fraccionar ?? false;
       if (!pid) nuevos.push(`[${p.codigo}] ${p.descripcion}`);
 
       const facItem = facturaItems[idx];
-      const esGranel = facItem?.es_granel || false;
-      const kgReales = facItem?.kg_totales || 0;
+
+      // es_granel: si el parser lo detectó, o si el proveedor es granel por defecto
+      // excepto si el producto está marcado como no_fraccionar
+      let esGranel = false;
+      let kgReales = 0;
+
+      if (facItem?.es_granel) {
+        esGranel = !noFraccionar;
+        kgReales = facItem.kg_totales || 0;
+      } else if (granelPorDefecto && !noFraccionar) {
+        // Proveedor granel por defecto y sin factura que diga lo contrario
+        // Asumimos que las unidades del DUX son kg
+        esGranel = true;
+        kgReales = p.cantidad; // cantidad DUX = kg
+      }
 
       return {
         codigo: p.codigo,
@@ -322,7 +359,7 @@ export default function RecepcionPage() {
         factura_cantidad: facItem?.cantidad,
         kg_reales: kgReales,
         es_granel: esGranel,
-        lotes: [], // Arranca vacío — se va cargando caja por caja
+        lotes: [],
       };
     });
 
