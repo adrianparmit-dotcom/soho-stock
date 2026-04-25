@@ -64,17 +64,24 @@ export default function ImportarVentasPage() {
       if (cols.length < Math.max(idxCodigo, idxCantidad, idxFecha) + 1) continue;
 
       const sucursal = cols[idxSucursal]?.trim() || 'SOHO';
-      const fecha = cols[idxFecha]?.trim().split(' ')[0] || '';
       const codigo = cols[idxCodigo]?.trim().split('.')[0] || '';
       const nombre = cols[idxProducto]?.trim() || '';
       const cantidad = parseFloat(cols[idxCantidad]?.trim().replace(',', '.')) || 0;
 
       if (!codigo || codigo === 'nan' || cantidad <= 0) continue;
 
-      // Validar fecha
-      const fechaDate = new Date(fecha);
-      if (isNaN(fechaDate.getTime())) continue;
-      const fechaISO = fechaDate.toISOString().split('T')[0];
+      // Parsear fecha: el DUX trae "2026-02-25 03:00:00" o "2026-02-25"
+      const fechaRaw = cols[idxFecha]?.trim() || '';
+      // Tomar solo la parte de fecha YYYY-MM-DD, ignorar hora
+      const fechaMatch = fechaRaw.match(/(\d{4}-\d{2}-\d{2})/);
+      if (!fechaMatch) continue;
+      const fechaISO = fechaMatch[1];
+
+      // Sanity check: descartar fechas fuera de rango razonable (últimos 2 años)
+      const anio = parseInt(fechaISO.split('-')[0]);
+      const anioActual = new Date().getFullYear();
+      if (anio < anioActual - 2 || anio > anioActual) continue;
+
       if (!fechaMin || fechaISO < fechaMin) fechaMin = fechaISO;
       if (!fechaMax || fechaISO > fechaMax) fechaMax = fechaISO;
 
