@@ -9,6 +9,8 @@ import { createClient } from '@/lib/supabase/client';
 import {
   PackagePlus,
   DatabaseZap,
+  TrendingUp,
+  ShoppingCart,
   Scissors,
   ArrowRightLeft,
   Boxes,
@@ -36,12 +38,14 @@ const reportes: ModuleCard[] = [
   { href: '/reportes/stock', label: 'Stock', icon: <Boxes size={32} />, desc: 'Semáforo de vencimientos' },
   { href: '/reportes/promociones', label: 'Promociones', icon: <Tag size={32} />, desc: 'Suave · Media · Fuerte · Liquidación' },
   { href: '/reportes/mensual', label: 'Informe mensual', icon: <FileBarChart size={32} />, desc: 'Solo admin · PDF' },
+  { href: '/reportes/compras', label: 'Sugerencias compra', icon: <ShoppingCart size={32} />, desc: 'Qué comprar y cuánto' },
 ];
 
 const configuracion: ModuleCard[] = [
   { href: '/configuracion/proveedores', label: 'Proveedores', icon: <Truck size={32} />, desc: 'Margen, CUIT y contacto' },
   { href: '/configuracion/usuarios', label: 'Usuarios', icon: <Users size={32} />, desc: 'Accesos y roles del equipo' },
-  { href: '/operaciones/stock-inicial', label: 'Stock inicial', icon: <DatabaseZap size={32} />, desc: 'Carga masiva desde DUX · Solo admin' },
+  { href: '/operaciones/stock-inicial', label: 'Stock inicial', icon: <DatabaseZap size={32} />, desc: 'Carga masiva desde DUX' },
+  { href: '/operaciones/importar-ventas', label: 'Importar ventas', icon: <TrendingUp size={32} />, desc: 'Historial de ventas desde DUX' },
 ];
 
 export default function HomePage() {

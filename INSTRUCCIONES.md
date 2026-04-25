@@ -97,3 +97,28 @@ A medida que hagas recepciones, los lotes nuevos tendrán fechas reales.
 ## SOPORTE
 
 Si algo no funciona después del deploy, tomá captura del error (o de la consola del navegador con F12 → Console) y compartila.
+
+---
+
+## NUEVOS MÓDULOS EN V4
+
+### Importar ventas (Configuración → Importar ventas)
+1. En DUX: **Consulta de Ventas Detallada**
+2. Filtrá el período (máx. 60 días por exportación)
+3. Exportá a Excel → abrilo → **Ctrl+A** → **Ctrl+C**
+4. Pegá en la app → Parsear → Confirmar
+5. Podés importar múltiples períodos (se acumulan)
+
+### Sugerencias de compra (Reportes → Sugerencias compra)
+Muestra qué productos comprar y cuánto, basado en:
+- Stock actual
+- Promedio de ventas diarias (del historial importado)
+- Lead time de 7 días + colchón de 14 días
+
+Categorías:
+- 🚨 **Urgente** — stock para menos de 7 días
+- 🛒 **Comprar** — stock para menos de 21 días
+- ⛔ **No comprar** — riesgo de vencimiento antes de vender
+- ✅ **OK** — stock suficiente
+
+Sin historial de ventas importado, igual funciona pero solo con stock (sin cálculo de días de cobertura).

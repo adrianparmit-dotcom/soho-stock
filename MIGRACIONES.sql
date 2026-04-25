@@ -78,3 +78,33 @@ CREATE TRIGGER recepciones_borrador_updated_at
 -- SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'lotes' ORDER BY ordinal_position;
 -- SELECT COUNT(*) FROM lotes WHERE deposito IS NULL;  -- debe dar 0
 -- SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY table_name;
+
+-- ============================================================
+-- MIGRACIÓN 4: Tabla ventas_historico
+-- Para importar ventas del DUX y calcular promedios diarios
+-- ============================================================
+CREATE TABLE IF NOT EXISTS ventas_historico (
+  id serial PRIMARY KEY,
+  producto_id integer REFERENCES productos(id),
+  codigo text NOT NULL,
+  nombre text,
+  sucursal_id integer REFERENCES sucursales(id),
+  fecha date NOT NULL,
+  cantidad numeric NOT NULL DEFAULT 0,
+  created_at timestamptz DEFAULT now()
+);
+
+-- Índices para consultas rápidas
+CREATE INDEX IF NOT EXISTS ventas_historico_codigo_idx ON ventas_historico(codigo);
+CREATE INDEX IF NOT EXISTS ventas_historico_fecha_idx ON ventas_historico(fecha);
+CREATE INDEX IF NOT EXISTS ventas_historico_producto_idx ON ventas_historico(producto_id);
+
+-- ============================================================
+-- VERIFICACIÓN COMPLETA FINAL
+-- ============================================================
+-- SELECT table_name FROM information_schema.tables 
+-- WHERE table_schema = 'public' 
+-- ORDER BY table_name;
+-- Debería aparecer: lotes, movimientos, productos, proveedores, 
+-- recepciones_borrador, remitos, sucursales, transferencias,
+-- transferencia_items, fraccionados, usuarios_app, ventas_historico
