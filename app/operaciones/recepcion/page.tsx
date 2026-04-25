@@ -413,8 +413,24 @@ export default function RecepcionPage() {
   const toggleExpandir = (i: number) => {
     setExpandidos((prev) => {
       const n = new Set(prev);
-      if (n.has(i)) n.delete(i);
-      else n.add(i);
+      if (n.has(i)) {
+        n.delete(i);
+      } else {
+        n.add(i);
+        // Si no tiene cajas, agregar una automáticamente
+        setFilas((prevFilas) => {
+          const f = prevFilas[i];
+          if (f && f.lotes.length === 0) {
+            const nuevasFilas = [...prevFilas];
+            nuevasFilas[i] = {
+              ...f,
+              lotes: [{ cantidad: f.es_granel ? (f.kg_reales || 0) : f.cantidad_facturada, vencimiento: '' }],
+            };
+            return nuevasFilas;
+          }
+          return prevFilas;
+        });
+      }
       return n;
     });
   };
@@ -635,6 +651,69 @@ export default function RecepcionPage() {
 
   // ============== RENDER: CONFIRMADO ==============
   if (paso === 'confirmado' && resultado) {
+
+    const fechaHoy = new Date().toLocaleDateString('es-AR');
+    const sucursalNombre = sucursalId === 1 ? 'SOHO 1' : 'SOHO 2';
+
+    const generarPDF = () => {
+      const html = `<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Remito ${encabezado.numero_comprobante}</title>
+<style>
+  body{font-family:Arial,sans-serif;font-size:12px;padding:20px;color:#000}
+  h1{font-size:18px;text-align:center;border-bottom:2px solid #000;padding-bottom:8px;margin-bottom:16px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:16px;font-size:11px}
+  .prod{margin:6px 0;padding:6px 8px;border-left:3px solid #999}
+  .prod.ok{border-left-color:#2a9d2a}
+  .prod.dif{border-left-color:#cc6600}
+  .prod.no{border-left-color:#cc0000;color:#666}
+  .caja{margin-left:12px;color:#444;font-size:11px}
+  .total{margin-left:12px;font-weight:bold}
+  .warn{background:#fff3cd;padding:6px;margin:4px 0;border:1px solid #f0ad4e;font-size:11px}
+  .danger{background:#fde8e8;padding:6px;margin:4px 0;border:1px solid #e57373;font-size:11px}
+  .section{margin:12px 0}
+  .stitle{font-weight:bold;border-bottom:1px solid #333;padding-bottom:4px;margin-bottom:8px}
+  @media print{body{padding:0}}
+</style>
+</head>
+<body>
+<h1>REMITO DE RECEPCIÓN</h1>
+<div class="grid">
+  <div><b>Proveedor:</b> ${encabezado.proveedor_nombre}</div>
+  <div><b>Comprobante:</b> ${encabezado.numero_comprobante}</div>
+  <div><b>Fecha factura:</b> ${formatDate(encabezado.fecha)}</div>
+  <div><b>Fecha recepción:</b> ${fechaHoy}</div>
+  <div><b>Sucursal:</b> ${sucursalNombre}</div>
+  <div><b>Depósito:</b> ${deposito}</div>
+</div>
+<div class="section">
+<div class="stitle">PRODUCTOS RECIBIDOS</div>
+${filas.map((f) => {
+  const lotesCargados = f.lotes.filter((l) => l.cantidad > 0 && fechaValida(l.vencimiento));
+  if (lotesCargados.length === 0) return \`<div class="prod no">[<b>\${f.codigo}</b>] \${f.descripcion} — NO RECIBIDO</div>\`;
+  const totalCargado = lotesCargados.reduce((a, l) => a + l.cantidad, 0);
+  const u = f.es_granel ? 'kg' : 'un';
+  const esp = f.es_granel ? (f.kg_reales || f.cantidad_facturada) : f.cantidad_facturada;
+  const dif = totalCargado - esp;
+  const tieneDif = Math.abs(dif) > 0.001;
+  return \`<div class="prod \${tieneDif?'dif':'ok'}">
+    <b>[\${f.codigo}] \${f.descripcion}</b>
+    \${lotesCargados.map((l,i) => \`<div class="caja">Caja \${i+1}: <b>\${l.cantidad} \${u}</b> — Vence: \${formatDate(l.vencimiento)}</div>\`).join('')}
+    <div class="total">Total: \${totalCargado} \${u} / Facturado: \${esp} \${u} \${tieneDif?\`<span style="color:\${dif<0?'red':'green'}">(\${dif>0?'+':''}\${dif.toFixed(2)})</span>\`:'✓'}</div>
+  </div>\`;
+}).join('')}
+</div>
+\${resultado.diferencias.length>0?\`<div class="section"><div class="stitle">⚠ DIFERENCIAS (\${resultado.diferencias.length})</div>\${resultado.diferencias.map(d=>{const u=d.es_granel?'kg':'un';const dt=d.recibido-d.esperado;return\`<div class="warn">[<b>\${d.codigo}</b>] \${d.descripcion}: esperado \${d.esperado}\${u}, recibido \${d.recibido}\${u} (\${dt>0?'+':''}\${dt.toFixed(2)})</div>\`}).join('')}</div>\`:''}
+\${resultado.vencidos.length>0?\`<div class="section"><div class="stitle">🔴 VENCIDOS (\${resultado.vencidos.length})</div>\${resultado.vencidos.map(v=>\`<div class="danger">[<b>\${v.codigo}</b>] \${v.descripcion} — venció \${formatDate(v.vencimiento)}</div>\`).join('')}</div>\`:''}
+<div style="margin-top:16px;border-top:1px solid #999;padding-top:8px;font-size:10px;color:#666">
+  Lotes venta: \${resultado.total_venta} | Lotes granel: \${resultado.total_granel} | SOHO Stock — \${fechaHoy}
+</div>
+</body></html>`;
+      const w = window.open('', '_blank');
+      if (w) { w.document.write(html); w.document.close(); setTimeout(()=>w.print(), 500); }
+    };
     return (
       <>
         <PageHeader title="Recepción" backHref="/" />
@@ -694,6 +773,7 @@ export default function RecepcionPage() {
 
           <div className="flex gap-3 justify-center flex-wrap pt-4">
             <BigButton onClick={reset} variant="secondary">Cargar otra</BigButton>
+            <BigButton onClick={generarPDF} variant="secondary" icon={<FileText size={18}/>}>Imprimir / PDF</BigButton>
             <BigButton onClick={() => router.push('/reportes/stock')}>Ver stock</BigButton>
           </div>
         </div>

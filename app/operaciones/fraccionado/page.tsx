@@ -161,8 +161,6 @@ export default function FraccionadoPage() {
           bultos_usados: 1,
           peso_total_kg: kgDisponibles,
           peso_fraccionado_kg: totalFraccionadoKg,
-          merma_kg: mermaKg,
-          merma_pct: mermaPct,
           operador: operador || null,
           observaciones: observaciones || null,
         })
