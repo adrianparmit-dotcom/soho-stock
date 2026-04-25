@@ -67,8 +67,8 @@ export function parsearFacturaAutomatico(texto: string): FacturaParseada {
       codigo: it.codigo,
       descripcion: it.descripcion,
       cantidad: it.cantidad,
-      kg_totales: it.kg_totales,
-      es_granel: it.es_granel,
+      kg_totales: 0,      // Mayorista no es granel
+      es_granel: false,   // Mayorista no es granel
       precio_unitario: it.precio_unitario,
       subtotal: it.subtotal,
       bultos: null,

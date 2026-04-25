@@ -32,6 +32,10 @@ export function getExpirationStatus(fechaVenc: string) {
   return { color: 'verde', dias, label: `${dias}d`, bg: 'bg-success/15', text: 'text-success', border: 'border-success/40', esInicial: false };
 }
 
+const LOCALES = new Set(['LOCAL', 'LOCAL2']);
+const DEPOSITOS = new Set(['PIEZA', 'DEP_LOCAL2']);
+const MIN_STOCK_ENTRE_LOCALES = 3; // recomendar solo si la fuente tiene más de 2 (queda al menos 1)
+
 export function calcularTransferenciasRecomendadas(lotes: any[]) {
   const stockPorDep = new Map();
   const infoProd = new Map();
@@ -45,19 +49,49 @@ export function calcularTransferenciasRecomendadas(lotes: any[]) {
     }
     stockPorDep.get(pid)[dep] += Number(r.cantidad);
   });
+
   const result: any[] = [];
+
   stockPorDep.forEach((stock, pid) => {
     const info = infoProd.get(pid);
+
     for (const dep of LOCALES_VENTA) {
-      if (stock[dep] > 0) continue;
+      if (stock[dep] > 0) continue; // tiene stock, ok
+
       for (const fuente of (PRIORIDAD_TRANSFERENCIA[dep] || [])) {
-        if (stock[fuente] > 0) {
-          result.push({ codigo: info.codigo, nombre: info.nombre, depSinStock: dep, depConStock: fuente, cantidad: stock[fuente], labelSinStock: DEPOSITO_LABEL[dep], labelConStock: DEPOSITO_LABEL[fuente] });
-          break;
+        const stockFuente = stock[fuente];
+        if (stockFuente <= 0) continue;
+
+        // Regla: entre locales solo recomendar si la fuente tiene > 2 unidades
+        const esEntreLocales = LOCALES.has(dep) && LOCALES.has(fuente);
+        if (esEntreLocales && stockFuente < MIN_STOCK_ENTRE_LOCALES) continue;
+
+        // Regla: depósitos priorizan LOCAL1 — si PIEZA tiene stock y LOCAL1 está vacío,
+        // no recomendar para LOCAL2 todavía (LOCAL1 tiene prioridad)
+        if (dep === 'LOCAL2' && DEPOSITOS.has(fuente)) {
+          // Solo recomendar a LOCAL2 desde depósito si LOCAL1 ya está cubierto
+          if (stock['LOCAL'] > 0) {
+            // LOCAL1 está cubierto, puede ir a LOCAL2
+          } else {
+            // LOCAL1 sin stock y hay depósito disponible → prioridad a LOCAL1, no recomendar LOCAL2
+            continue;
+          }
         }
+
+        result.push({
+          codigo: info.codigo,
+          nombre: info.nombre,
+          depSinStock: dep,
+          depConStock: fuente,
+          cantidad: stockFuente,
+          labelSinStock: DEPOSITO_LABEL[dep],
+          labelConStock: DEPOSITO_LABEL[fuente],
+        });
+        break;
       }
     }
   });
+
   return result.sort((a, b) => a.depSinStock.localeCompare(b.depSinStock) || b.cantidad - a.cantidad);
 }
 

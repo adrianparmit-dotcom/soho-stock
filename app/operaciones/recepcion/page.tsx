@@ -275,23 +275,32 @@ export default function RecepcionPage() {
 
     let facturaItems: any[] = [];
     let formato = '';
+    const facturaMapByCodigo = new Map<string, any>();
+
     if (textoFactura.trim()) {
       const fact = parsearFacturaAutomatico(textoFactura);
       formato = fact.formato;
-      facturaItems = fact.items;
+
       if (fact.formato === 'desconocido') {
         setParseWarnings((w) => [...w, 'Formato de factura no reconocido. Se ignora.']);
-      }
-      if (facturaItems.length > 0 && dux.productos.length !== facturaItems.length) {
-        setErrorMatcheo({
-          dux: dux.productos.length,
-          factura: facturaItems.length,
-          mensaje:
-            dux.productos.length > facturaItems.length
+      } else if (fact.formato === 'mayorista') {
+        // Mayorista: matchear por código DUX
+        fact.items.forEach((item: any) => {
+          if (item.codigo) facturaMapByCodigo.set(String(item.codigo), item);
+        });
+      } else {
+        // Ankas: matcheo por posición
+        facturaItems = fact.items;
+        if (facturaItems.length > 0 && dux.productos.length !== facturaItems.length) {
+          setErrorMatcheo({
+            dux: dux.productos.length,
+            factura: facturaItems.length,
+            mensaje: dux.productos.length > facturaItems.length
               ? `DUX tiene ${dux.productos.length} productos pero la factura ${facturaItems.length}.`
               : `DUX tiene ${dux.productos.length} pero la factura tiene ${facturaItems.length}.`,
-        });
-        return;
+          });
+          return;
+        }
       }
     }
     setFormatoFactura(formato);
@@ -330,7 +339,9 @@ export default function RecepcionPage() {
       const noFraccionar = prodInfo?.no_fraccionar ?? false;
       if (!pid) nuevos.push(`[${p.codigo}] ${p.descripcion}`);
 
-      const facItem = facturaItems[idx];
+      const facItem = facturaMapByCodigo.size > 0
+        ? facturaMapByCodigo.get(p.codigo) ?? null  // Mayorista: buscar por código
+        : facturaItems[idx] ?? null;                 // Ankas: por posición
 
       // es_granel: si el parser lo detectó, o si el proveedor es granel por defecto
       // excepto si el producto está marcado como no_fraccionar
