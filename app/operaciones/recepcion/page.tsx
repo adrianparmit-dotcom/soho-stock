@@ -23,7 +23,6 @@ import {
   Edit3,
   Package,
   Scale,
-  ArrowRight,
   Search,
   Plus,
   Trash2,
@@ -742,18 +741,15 @@ export default function RecepcionPage() {
           </Card>
 
           {/* Barra de progreso */}
-          <div className="h-1.5 bg-bg-card rounded-full overflow-hidden">
+          <div className="h-1.5 bg-bg-card rounded-full overflow-hidden flex">
             <div
               className="h-full bg-success transition-all"
               style={{ width: `${(progreso.completos / progreso.total) * 100}%` }}
             />
             {progreso.parciales > 0 && (
               <div
-                className="h-full bg-warning -mt-1.5 transition-all"
-                style={{
-                  width: `${((progreso.completos + progreso.parciales) / progreso.total) * 100}%`,
-                  marginLeft: `${(progreso.completos / progreso.total) * 100}%`,
-                }}
+                className="h-full bg-warning transition-all"
+                style={{ width: `${(progreso.parciales / progreso.total) * 100}%` }}
               />
             )}
           </div>
@@ -1038,11 +1034,16 @@ function ProductoFila({
       {expandido && (
         <div className="px-3 pb-3 border-t border-border bg-bg-base/40">
           <div className="text-xs text-neutral-400 py-2">
-            DUX facturó: {fila.cantidad_facturada} un · {formatMoney(fila.precio_unitario)} c/u
-            {fila.es_granel && fila.factura_descripcion && (
-              <div className="text-accent mt-0.5 flex items-center gap-1">
-                <ArrowRight size={10} /> Proveedor: <b>{fila.kg_reales} kg</b> ({fila.factura_descripcion})
-              </div>
+            {fila.factura_descripcion ? (
+              <>
+                {fila.es_granel
+                  ? <span>Proveedor facturó: <b className="text-neutral-200">{fila.kg_reales} kg</b> · {formatMoney(fila.precio_unitario)} c/u</span>
+                  : <span>Proveedor facturó: <b className="text-neutral-200">{fila.factura_cantidad} {fila.factura_descripcion.toLowerCase().includes('kg') ? 'kg' : 'un'}</b> · {formatMoney(fila.precio_unitario)} c/u</span>
+                }
+                <span className="ml-2 text-neutral-600">· DUX: {fila.cantidad_facturada} un</span>
+              </>
+            ) : (
+              <span>DUX facturó: {fila.cantidad_facturada} un · {formatMoney(fila.precio_unitario)} c/u</span>
             )}
           </div>
 

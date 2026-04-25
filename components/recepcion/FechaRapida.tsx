@@ -1,36 +1,37 @@
 // @ts-nocheck
 'use client';
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect, useState } from 'react';
 
 /**
- * Input de fecha rápido: 3 campos numéricos (DD MM AAAA) con auto-avance.
- * Emite el valor como string ISO "YYYY-MM-DD" (igual que <input type="date">).
- *
- * Auto-avance:
- *  - Al completar DD (2 dígitos), foco pasa a MM.
- *  - Al completar MM, foco pasa a AAAA.
- *  - Tecla backspace en campo vacío vuelve al anterior.
- *
- * Validación suave: no impide tipear pero muestra borde rojo si está vencido.
+ * Input de fecha rápido: DD / MM / AA con auto-avance.
+ * - Acepta 1 o 2 dígitos por campo (auto-avanza al completar 2, o al tipear un dígito
+ *   que no puede ser el inicio de un número de 2 dígitos válido)
+ * - Año de 2 dígitos: 26 → 2026
+ * - Emite ISO "YYYY-MM-DD" cuando los 3 campos están completos
+ * - DD siempre se completa como "01" si se ingresa "1" y se avanza
  */
 
 interface Props {
-  value: string; // ISO "YYYY-MM-DD" o ''
+  value: string;
   onChange: (iso: string) => void;
   className?: string;
   compact?: boolean;
   autoFocus?: boolean;
 }
 
-function parseISO(iso: string): { dd: string; mm: string; yyyy: string } {
-  if (!iso || iso.length < 10) return { dd: '', mm: '', yyyy: '' };
+function parseISO(iso: string): { dd: string; mm: string; aa: string } {
+  if (!iso || iso.length < 10) return { dd: '', mm: '', aa: '' };
   const [y, m, d] = iso.split('-');
-  return { dd: d || '', mm: m || '', yyyy: y || '' };
+  const aa = y ? y.slice(2) : '';
+  return { dd: d || '', mm: m || '', aa };
 }
 
-function toISO(dd: string, mm: string, yyyy: string): string {
-  if (dd.length !== 2 || mm.length !== 2 || yyyy.length !== 4) return '';
-  return `${yyyy}-${mm}-${dd}`;
+function toISO(dd: string, mm: string, aa: string): string {
+  const d = dd.padStart(2, '0');
+  const m = mm.padStart(2, '0');
+  if (d.length !== 2 || m.length !== 2 || aa.length !== 2) return '';
+  const yyyy = '20' + aa;
+  return `${yyyy}-${m}-${d}`;
 }
 
 function estaVencido(iso: string): boolean {
@@ -42,37 +43,69 @@ function estaVencido(iso: string): boolean {
   return f < hoy;
 }
 
+// Auto-avanza si el dígito ingresado no puede ser el primer dígito de un número válido de 2 dígitos
+// DD: válido 01-31 → auto-avanza si primer dígito > 3
+// MM: válido 01-12 → auto-avanza si primer dígito > 1
+// AA: válido 00-99 → nunca auto-avanza con 1 dígito (cualquier decena es posible)
+function debeAvanzar(campo: 'dd' | 'mm' | 'aa', digito: string): boolean {
+  const n = parseInt(digito);
+  if (campo === 'dd') return n > 3;
+  if (campo === 'mm') return n > 1;
+  return false;
+}
+
 export function FechaRapida({ value, onChange, className = '', compact, autoFocus }: Props) {
-  const { dd, mm, yyyy } = parseISO(value);
+  const parsed = parseISO(value);
+  const [dd, setDDState] = useState(parsed.dd);
+  const [mm, setMMState] = useState(parsed.mm);
+  const [aa, setAAState] = useState(parsed.aa);
+
   const refDD = useRef<HTMLInputElement>(null);
   const refMM = useRef<HTMLInputElement>(null);
-  const refYY = useRef<HTMLInputElement>(null);
+  const refAA = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (value && value.length === 10) {
+      const p = parseISO(value);
+      setDDState(p.dd);
+      setMMState(p.mm);
+      setAAState(p.aa);
+    } else if (value === '') {
+      setDDState(''); setMMState(''); setAAState('');
+    }
+  }, [value]);
 
   useEffect(() => {
     if (autoFocus) refDD.current?.focus();
   }, [autoFocus]);
 
-  const vencido = estaVencido(value);
-  const sizeInput = compact
-    ? 'text-sm px-1.5 py-1.5'
-    : 'text-sm px-2 py-2';
+  const emitir = (d: string, m: string, a: string) => {
+    const iso = toISO(d, m, a);
+    onChange(iso || '');
+  };
 
-  const setDD = (v: string) => {
+  const handleDD = (v: string) => {
     const clean = v.replace(/\D/g, '').slice(0, 2);
-    const next = toISO(clean, mm, yyyy);
-    onChange(next);
-    if (clean.length === 2) refMM.current?.focus();
+    setDDState(clean);
+    emitir(clean, mm, aa);
+    if (clean.length === 2 || (clean.length === 1 && debeAvanzar('dd', clean))) {
+      refMM.current?.focus();
+    }
   };
-  const setMM = (v: string) => {
+
+  const handleMM = (v: string) => {
     const clean = v.replace(/\D/g, '').slice(0, 2);
-    const next = toISO(dd, clean, yyyy);
-    onChange(next);
-    if (clean.length === 2) refYY.current?.focus();
+    setMMState(clean);
+    emitir(dd, clean, aa);
+    if (clean.length === 2 || (clean.length === 1 && debeAvanzar('mm', clean))) {
+      refAA.current?.focus();
+    }
   };
-  const setYY = (v: string) => {
-    const clean = v.replace(/\D/g, '').slice(0, 4);
-    const next = toISO(dd, mm, clean);
-    onChange(next);
+
+  const handleAA = (v: string) => {
+    const clean = v.replace(/\D/g, '').slice(0, 2);
+    setAAState(clean);
+    emitir(dd, mm, clean);
   };
 
   const handleBackspace = (
@@ -85,9 +118,10 @@ export function FechaRapida({ value, onChange, className = '', compact, autoFocu
     }
   };
 
-  const borderClass = vencido
-    ? 'border-danger'
-    : 'border-border focus-within:border-accent';
+  const isoActual = toISO(dd, mm, aa);
+  const vencido = estaVencido(isoActual);
+  const sizeInput = compact ? 'text-sm px-1.5 py-1.5' : 'text-sm px-2 py-2';
+  const borderClass = vencido ? 'border-danger' : 'border-border focus-within:border-accent';
   const txt = vencido ? 'text-danger' : '';
 
   return (
@@ -96,7 +130,7 @@ export function FechaRapida({ value, onChange, className = '', compact, autoFocu
         ref={refDD}
         inputMode="numeric"
         value={dd}
-        onChange={(e) => setDD(e.target.value)}
+        onChange={(e) => handleDD(e.target.value)}
         onKeyDown={(e) => handleBackspace(e, dd, null)}
         placeholder="DD"
         maxLength={2}
@@ -107,7 +141,7 @@ export function FechaRapida({ value, onChange, className = '', compact, autoFocu
         ref={refMM}
         inputMode="numeric"
         value={mm}
-        onChange={(e) => setMM(e.target.value)}
+        onChange={(e) => handleMM(e.target.value)}
         onKeyDown={(e) => handleBackspace(e, mm, refDD)}
         placeholder="MM"
         maxLength={2}
@@ -115,14 +149,14 @@ export function FechaRapida({ value, onChange, className = '', compact, autoFocu
       />
       <span className="text-neutral-600">/</span>
       <input
-        ref={refYY}
+        ref={refAA}
         inputMode="numeric"
-        value={yyyy}
-        onChange={(e) => setYY(e.target.value)}
-        onKeyDown={(e) => handleBackspace(e, yyyy, refMM)}
-        placeholder="AAAA"
-        maxLength={4}
-        className={`w-14 ${sizeInput} bg-transparent text-center focus:outline-none tabular-nums ${txt}`}
+        value={aa}
+        onChange={(e) => handleAA(e.target.value)}
+        onKeyDown={(e) => handleBackspace(e, aa, refMM)}
+        placeholder="AA"
+        maxLength={2}
+        className={`w-8 ${sizeInput} bg-transparent text-center focus:outline-none tabular-nums ${txt}`}
       />
     </div>
   );

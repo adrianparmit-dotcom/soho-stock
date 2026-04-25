@@ -10,6 +10,7 @@ import { BigButton } from '@/components/ui/BigButton';
 import { Card } from '@/components/ui/Card';
 import { SucursalPicker } from '@/components/ui/SucursalPicker';
 import { formatDate } from '@/lib/utils/format';
+import { FechaRapida } from '@/components/recepcion/FechaRapida';
 import {
   Check,
   AlertTriangle,
@@ -491,11 +492,10 @@ export default function FraccionadoPage() {
                       <label className="block text-[10px] uppercase text-neutral-500 mb-1">
                         Vencimiento
                       </label>
-                      <input
-                        type="date"
+                      <FechaRapida
                         value={s.vencimiento}
-                        onChange={(e) => actualizarSalida(i, { vencimiento: e.target.value })}
-                        className="w-full bg-bg-card border border-border rounded-lg px-2 py-2 text-sm focus:outline-none focus:border-accent"
+                        onChange={(iso) => actualizarSalida(i, { vencimiento: iso })}
+                        compact
                       />
                     </div>
                     {salidas.length > 1 && (
