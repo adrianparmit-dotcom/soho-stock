@@ -437,8 +437,12 @@ export default function RecepcionPage() {
   const puedeConfirmar = () => {
     if (proveedorNoEncontrado) return false;
     if (filas.length === 0) return false;
+    // Al menos un producto tiene que tener algo cargado
+    const algunoCargado = filas.some(f => f.lotes.length > 0 && f.lotes.some(l => l.cantidad > 0));
+    if (!algunoCargado) return false;
+    // Los productos CON lotes cargados deben tener cantidad > 0 y fecha válida
     for (const f of filas) {
-      if (f.lotes.length === 0) return false;
+      if (f.lotes.length === 0) continue; // sin cajas = no recibido, se omite
       const sumaCargada = f.lotes.reduce((a, l) => a + (l.cantidad || 0), 0);
       if (sumaCargada <= 0) return false;
       for (const l of f.lotes) {
@@ -838,7 +842,7 @@ export default function RecepcionPage() {
               <p className="text-center text-xs text-neutral-500 mt-2">
                 {lotesVencidos.length > 0 && !confirmadoVencidos
                   ? 'Tildá el checkbox de vencidos para continuar.'
-                  : `Faltan ${progreso.vacios + progreso.parciales} producto(s) por completar.`}
+                  : 'Cargá al menos una caja con cantidad y fecha válida para confirmar.'}
               </p>
             )}
           </div>
