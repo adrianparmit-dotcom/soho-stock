@@ -315,36 +315,29 @@ export default function RecepcionPage() {
         const facItem = facturaMapByCodigo.size > 0
           ? facturaMapByCodigo.get(p.codigo) ?? null
           : facturaItems[idx] ?? null;
+
+        // Producto del DUX sin match en la factura
         if (!facItem) {
-          difsList.push({ codigo: p.codigo, descripcion: p.descripcion, tipo: 'sin_factura', dux_cant: p.cantidad, fac_cant: null });
-          return;
-        }
-        // Diferencia de cantidad
-        const duxCant = p.cantidad;
-        const facCant = facItem.cantidad;
-        if (Math.abs(duxCant - facCant) > 0.001) {
           difsList.push({
             codigo: p.codigo,
             descripcion: p.descripcion,
-            tipo: 'cantidad',
-            dux_cant: duxCant,
-            fac_cant: facCant,
-            delta: facCant - duxCant,
+            tipo: 'sin_factura',
           });
+          return;
         }
-        // Diferencia de precio (si hay precio en factura)
-        if (facItem.precio_unitario && p.precio_unitario) {
-          const duxPrecio = p.precio_unitario;
-          const facPrecio = facItem.precio_unitario;
-          const diff_pct = Math.abs((facPrecio - duxPrecio) / duxPrecio) * 100;
-          if (diff_pct > 1) { // más de 1% de diferencia
+
+        // Diferencia de precio unitario: si la diferencia es mayor a $1
+        if (facItem.precio_unitario > 0 && p.precio_unitario > 0) {
+          const diff_abs = Math.abs(facItem.precio_unitario - p.precio_unitario);
+          if (diff_abs > 1) {
             difsList.push({
               codigo: p.codigo,
               descripcion: p.descripcion,
               tipo: 'precio',
-              dux_precio: duxPrecio,
-              fac_precio: facPrecio,
-              diff_pct: diff_pct.toFixed(1),
+              dux_precio: p.precio_unitario,
+              fac_precio: facItem.precio_unitario,
+              diff_abs: diff_abs.toFixed(2),
+              diff_pct: ((diff_abs / p.precio_unitario) * 100).toFixed(1),
             });
           }
         }
@@ -993,42 +986,59 @@ export default function RecepcionPage() {
 
 
           {/* Panel de diferencias factura vs DUX */}
-          {diferenciasFactura.length > 0 && (
-            <div className="bg-warning/10 border border-warning/40 rounded-xl p-3">
-              <div className="flex items-center gap-2 mb-2">
-                <AlertTriangle className="text-warning flex-shrink-0" size={16} />
-                <div className="font-semibold text-warning text-sm">
-                  {diferenciasFactura.length} diferencia(s) entre DUX y factura del proveedor
+          {diferenciasFactura.length > 0 && (() => {
+            const sinFactura = diferenciasFactura.filter((d: any) => d.tipo === 'sin_factura');
+            const difPrecio = diferenciasFactura.filter((d: any) => d.tipo === 'precio');
+            return (
+              <div className="bg-warning/10 border border-warning/40 rounded-xl p-3 space-y-3">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="text-warning flex-shrink-0" size={16} />
+                  <div className="font-semibold text-warning text-sm">
+                    Diferencias detectadas entre DUX y factura del proveedor
+                  </div>
+                </div>
+
+                {sinFactura.length > 0 && (
+                  <div>
+                    <div className="text-xs font-semibold text-neutral-400 uppercase mb-1">
+                      {sinFactura.length} producto(s) del DUX sin match en la factura:
+                    </div>
+                    <div className="space-y-0.5 max-h-28 overflow-y-auto">
+                      {sinFactura.map((d: any, i: number) => (
+                        <div key={i} className="text-xs text-neutral-300 flex gap-2">
+                          <span className="text-neutral-500 font-mono">[{d.codigo}]</span>
+                          <span className="truncate">{d.descripcion}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {difPrecio.length > 0 && (
+                  <div>
+                    <div className="text-xs font-semibold text-neutral-400 uppercase mb-1">
+                      {difPrecio.length} diferencia(s) de precio unitario:
+                    </div>
+                    <div className="space-y-0.5 max-h-28 overflow-y-auto">
+                      {difPrecio.map((d: any, i: number) => (
+                        <div key={i} className="text-xs text-neutral-300 flex items-center gap-2">
+                          <span className="text-neutral-500 font-mono">[{d.codigo}]</span>
+                          <span className="flex-1 truncate">{d.descripcion}</span>
+                          <span className="flex-shrink-0 text-orange-400 tabular-nums">
+                            DUX ${d.dux_precio?.toLocaleString('es-AR')} → Fact ${d.fac_precio?.toLocaleString('es-AR')} (${d.diff_abs > 0 && d.fac_precio > d.dux_precio ? '+' : '-'}${d.diff_abs})
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="text-[10px] text-neutral-500 border-t border-warning/20 pt-2">
+                  Podés confirmar igual — las diferencias quedan registradas en el remito.
                 </div>
               </div>
-              <div className="space-y-1 max-h-40 overflow-y-auto">
-                {diferenciasFactura.map((d: any, i: number) => (
-                  <div key={i} className="text-xs text-neutral-300 flex items-start gap-2 py-0.5">
-                    <span className="text-neutral-500 font-mono flex-shrink-0">[{d.codigo}]</span>
-                    <span className="flex-1 truncate">{d.descripcion}</span>
-                    <span className="flex-shrink-0 text-right">
-                      {d.tipo === 'cantidad' && (
-                        <span className={d.delta < 0 ? 'text-danger' : 'text-success'}>
-                          DUX: {d.dux_cant} → Fact: {d.fac_cant} ({d.delta > 0 ? '+' : ''}{d.delta.toFixed(2)})
-                        </span>
-                      )}
-                      {d.tipo === 'precio' && (
-                        <span className="text-orange-400">
-                          Precio: {d.diff_pct}% dif.
-                        </span>
-                      )}
-                      {d.tipo === 'sin_factura' && (
-                        <span className="text-neutral-500">sin match</span>
-                      )}
-                    </span>
-                  </div>
-                ))}
-              </div>
-              <div className="text-[10px] text-neutral-500 mt-2">
-                Podés confirmar igual — las diferencias quedan registradas en el remito.
-              </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* Alertas vencidos */}
           {lotesVencidos.length > 0 && (

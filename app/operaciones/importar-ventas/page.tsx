@@ -94,17 +94,29 @@ export default function ImportarVentasPage() {
       const sucursalRaw = (cols[idxSucursal] || '').trim();
       const codigoRaw   = (cols[idxCodigo]   || '').trim().split('.')[0];
       const nombre      = (cols[idxProducto] || '').trim();
-      const cantidadRaw = (cols[idxCantidad] || '').trim().replace(',', '.');
+      const cantidadRaw = (cols[idxCantidad] || '').trim();
       const fechaRaw    = (cols[idxFecha]    || '').trim();
 
       if (!codigoRaw || codigoRaw === 'nan' || codigoRaw === '') continue;
-      const cantidad = parseFloat(cantidadRaw);
-      if (!cantidad || cantidad <= 0 || isNaN(cantidad)) continue;
 
-      // Parsear fecha: "2026-02-25 03:00:00" → "2026-02-25"
-      const fechaMatch = fechaRaw.match(/(\d{4}-\d{2}-\d{2})/);
-      if (!fechaMatch) continue;
-      const fechaISO = fechaMatch[1];
+      // Cantidad: soporta "1,00" (AR) y "1.00" (EN)
+      const cantidadNum = parseFloat(cantidadRaw.replace(/\./g, '').replace(',', '.'));
+      if (!cantidadNum || cantidadNum <= 0 || isNaN(cantidadNum)) continue;
+
+      // Fecha: soporta "25/02/2026" (DD/MM/YYYY) y "2026-02-25" (ISO) y "2026-02-25 03:00:00"
+      let fechaISO = '';
+      const mDMY = fechaRaw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+      const mYMD = fechaRaw.match(/(\d{4}-\d{2}-\d{2})/);
+      if (mDMY) {
+        const d = mDMY[1].padStart(2, '0');
+        const m = mDMY[2].padStart(2, '0');
+        fechaISO = `${mDMY[3]}-${m}-${d}`;
+      } else if (mYMD) {
+        fechaISO = mYMD[1];
+      } else {
+        continue;
+      }
+
       const anio = parseInt(fechaISO.split('-')[0]);
       if (anio < anioActual - 3 || anio > anioActual + 1) continue;
 
@@ -119,7 +131,7 @@ export default function ImportarVentasPage() {
         fecha: fechaISO,
         codigo: codigoRaw,
         nombre,
-        cantidad,
+        cantidad: cantidadNum,
       });
     }
 
