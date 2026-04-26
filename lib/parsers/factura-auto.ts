@@ -63,17 +63,23 @@ export function parsearFacturaAutomatico(texto: string): FacturaParseada {
 
   if (formato === 'mayorista') {
     const r = parsearFacturaMayorista(texto);
-    const items: ItemUnificado[] = r.items.map((it: ItemMayorista) => ({
-      codigo: it.codigo,
-      descripcion: it.descripcion,
-      cantidad: it.cantidad,
-      kg_totales: 0,      // Mayorista no es granel
-      es_granel: false,   // Mayorista no es granel
-      precio_unitario: it.precio_unitario,
-      subtotal: it.subtotal,
-      bultos: null,
-      peso_por_bulto_kg: null,
-    }));
+    const items: ItemUnificado[] = r.items.map((it: ItemMayorista) => {
+      // Detectar granel: si la descripción contiene KG o XKG
+      const esGranel = /\bKG\b|XKG/i.test(it.descripcion);
+      // Para granel, la cantidad del Mayorista ya viene en KG
+      const kgTotales = esGranel ? it.cantidad : 0;
+      return {
+        codigo: it.codigo,
+        descripcion: it.descripcion,
+        cantidad: it.cantidad,
+        kg_totales: kgTotales,
+        es_granel: esGranel,
+        precio_unitario: it.precio_unitario,
+        subtotal: it.subtotal,
+        bultos: null,
+        peso_por_bulto_kg: null,
+      };
+    });
     return { formato, items, warnings: r.warnings };
   }
 

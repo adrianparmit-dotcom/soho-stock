@@ -118,3 +118,9 @@ ALTER TABLE proveedores ADD COLUMN IF NOT EXISTS granel_por_defecto boolean DEFA
 
 -- Marcar Ankas como granel por defecto
 UPDATE proveedores SET granel_por_defecto = true WHERE cuit = '30716335808';
+
+-- ============================================================
+-- FIX: Relajar constraints en movimientos
+-- ============================================================
+ALTER TABLE movimientos ALTER COLUMN lote_id DROP NOT NULL;
+ALTER TABLE movimientos ALTER COLUMN tipo SET DEFAULT 'ingreso';

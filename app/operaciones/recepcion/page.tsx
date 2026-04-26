@@ -29,6 +29,7 @@ import {
   FileClock,
   Save,
   X,
+  FileText,
   ChevronDown,
   ChevronRight,
 } from 'lucide-react';
@@ -101,6 +102,7 @@ export default function RecepcionPage() {
   const [proveedorNoEncontrado, setProveedorNoEncontrado] = useState(false);
   const [formatoFactura, setFormatoFactura] = useState<string>('');
   const [errorMatcheo, setErrorMatcheo] = useState<any>(null);
+  const [diferenciasFactura, setDiferenciasFactura] = useState<any[]>([]);
 
   const [filas, setFilas] = useState<FilaRecepcion[]>([]);
   const [productosNuevos, setProductosNuevos] = useState<string[]>([]);
@@ -289,9 +291,10 @@ export default function RecepcionPage() {
           if (item.codigo) facturaMapByCodigo.set(String(item.codigo), item);
         });
       } else {
-        // Ankas: matcheo por posición
+        // Ankas y otros: matcheo por posición
         facturaItems = fact.items;
         if (facturaItems.length > 0 && dux.productos.length !== facturaItems.length) {
+          // Para Ankas bloqueamos porque el matcheo es posicional y se desfasa
           setErrorMatcheo({
             dux: dux.productos.length,
             factura: facturaItems.length,
@@ -304,6 +307,50 @@ export default function RecepcionPage() {
       }
     }
     setFormatoFactura(formato);
+
+    // ============ CALCULAR DIFERENCIAS FACTURA vs DUX ============
+    const difsList: any[] = [];
+    if (facturaMapByCodigo.size > 0 || facturaItems.length > 0) {
+      dux.productos.forEach((p: any, idx: number) => {
+        const facItem = facturaMapByCodigo.size > 0
+          ? facturaMapByCodigo.get(p.codigo) ?? null
+          : facturaItems[idx] ?? null;
+        if (!facItem) {
+          difsList.push({ codigo: p.codigo, descripcion: p.descripcion, tipo: 'sin_factura', dux_cant: p.cantidad, fac_cant: null });
+          return;
+        }
+        // Diferencia de cantidad
+        const duxCant = p.cantidad;
+        const facCant = facItem.cantidad;
+        if (Math.abs(duxCant - facCant) > 0.001) {
+          difsList.push({
+            codigo: p.codigo,
+            descripcion: p.descripcion,
+            tipo: 'cantidad',
+            dux_cant: duxCant,
+            fac_cant: facCant,
+            delta: facCant - duxCant,
+          });
+        }
+        // Diferencia de precio (si hay precio en factura)
+        if (facItem.precio_unitario && p.precio_unitario) {
+          const duxPrecio = p.precio_unitario;
+          const facPrecio = facItem.precio_unitario;
+          const diff_pct = Math.abs((facPrecio - duxPrecio) / duxPrecio) * 100;
+          if (diff_pct > 1) { // más de 1% de diferencia
+            difsList.push({
+              codigo: p.codigo,
+              descripcion: p.descripcion,
+              tipo: 'precio',
+              dux_precio: duxPrecio,
+              fac_precio: facPrecio,
+              diff_pct: diff_pct.toFixed(1),
+            });
+          }
+        }
+      });
+    }
+    setDiferenciasFactura(difsList);
 
     // Proveedor
     let provId = null;
@@ -567,7 +614,22 @@ export default function RecepcionPage() {
         })
         .select('id')
         .single();
-      if (remitoErr) throw remitoErr;
+
+      // Si el remito ya existe (duplicado), buscarlo
+      let remitoId: number | null = remito?.id ?? null;
+      if (remitoErr) {
+        if (remitoErr.code === '23505') {
+          // Número de comprobante duplicado — buscar el existente
+          const { data: existing } = await supabase
+            .from('remitos')
+            .select('id')
+            .eq('numero', encabezado.numero_comprobante)
+            .maybeSingle();
+          remitoId = existing?.id ?? null;
+        } else {
+          throw remitoErr;
+        }
+      }
 
       let totalLotesGranel = 0;
       let totalLotesVenta = 0;
@@ -617,7 +679,7 @@ export default function RecepcionPage() {
       }
 
       setResultado({
-        remito_id: remito.id,
+        remito_id: remitoId,
         total_filas: filas.length,
         total_granel: totalLotesGranel,
         total_venta: totalLotesVenta,
@@ -929,7 +991,46 @@ export default function RecepcionPage() {
             </div>
           </div>
 
-          {/* Alertas */}
+
+          {/* Panel de diferencias factura vs DUX */}
+          {diferenciasFactura.length > 0 && (
+            <div className="bg-warning/10 border border-warning/40 rounded-xl p-3">
+              <div className="flex items-center gap-2 mb-2">
+                <AlertTriangle className="text-warning flex-shrink-0" size={16} />
+                <div className="font-semibold text-warning text-sm">
+                  {diferenciasFactura.length} diferencia(s) entre DUX y factura del proveedor
+                </div>
+              </div>
+              <div className="space-y-1 max-h-40 overflow-y-auto">
+                {diferenciasFactura.map((d: any, i: number) => (
+                  <div key={i} className="text-xs text-neutral-300 flex items-start gap-2 py-0.5">
+                    <span className="text-neutral-500 font-mono flex-shrink-0">[{d.codigo}]</span>
+                    <span className="flex-1 truncate">{d.descripcion}</span>
+                    <span className="flex-shrink-0 text-right">
+                      {d.tipo === 'cantidad' && (
+                        <span className={d.delta < 0 ? 'text-danger' : 'text-success'}>
+                          DUX: {d.dux_cant} → Fact: {d.fac_cant} ({d.delta > 0 ? '+' : ''}{d.delta.toFixed(2)})
+                        </span>
+                      )}
+                      {d.tipo === 'precio' && (
+                        <span className="text-orange-400">
+                          Precio: {d.diff_pct}% dif.
+                        </span>
+                      )}
+                      {d.tipo === 'sin_factura' && (
+                        <span className="text-neutral-500">sin match</span>
+                      )}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <div className="text-[10px] text-neutral-500 mt-2">
+                Podés confirmar igual — las diferencias quedan registradas en el remito.
+              </div>
+            </div>
+          )}
+
+          {/* Alertas vencidos */}
           {lotesVencidos.length > 0 && (
             <div className="bg-danger/10 border-2 border-danger rounded-xl p-3">
               <div className="flex items-start gap-2 mb-2">
