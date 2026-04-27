@@ -1,5 +1,5 @@
 // @ts-nocheck
-const DUX_BASE = 'https://api.duxsoftware.com.ar/api';
+const DUX_BASE = 'https://erp.duxsoftware.com.ar/WSERP/rest/services';
 
 function getToken() { return process.env.DUX_TOKEN; }
 function getEmpresa() { return process.env.DUX_EMPRESA_ID; }
@@ -13,9 +13,11 @@ async function duxFetch(endpoint: string) {
   const token = getToken();
   const empresa = getEmpresa();
   if (!token || !empresa) throw new Error('DUX_TOKEN o DUX_EMPRESA_ID no configurados');
-  const url = `${DUX_BASE}${endpoint}&empresa_id=${empresa}`;
+  // DUX usa token como query param
+  const sep = endpoint.includes('?') ? '&' : '?';
+  const url = `${DUX_BASE}${endpoint}${sep}token=${token}&empresa_id=${empresa}`;
   const res = await fetch(url, {
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+    headers: { 'Content-Type': 'application/json' },
     cache: 'no-store',
   });
   if (!res.ok) {
