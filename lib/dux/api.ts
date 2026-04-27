@@ -13,11 +13,15 @@ async function duxFetch(endpoint: string) {
   const token = getToken();
   const empresa = getEmpresa();
   if (!token || !empresa) throw new Error('DUX_TOKEN o DUX_EMPRESA_ID no configurados');
-  // DUX usa token como query param
+  // DUX usa token como header 'authorization'
   const sep = endpoint.includes('?') ? '&' : '?';
-  const url = `${DUX_BASE}${endpoint}${sep}token=${token}&empresa_id=${empresa}`;
+  const url = `${DUX_BASE}${endpoint}${sep}empresa_id=${empresa}`;
   const res = await fetch(url, {
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'authorization': token,
+      'accept': 'application/json',
+    },
     cache: 'no-store',
   });
   if (!res.ok) {

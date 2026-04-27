@@ -87,6 +87,7 @@ export default function HomePage() {
       { href: '/configuracion/usuarios', label: 'Usuarios', icon: <Users size={32} />, desc: 'Accesos y roles del equipo' },
       { href: '/operaciones/stock-inicial', label: 'Stock inicial', icon: <DatabaseZap size={32} />, desc: 'Carga masiva desde DUX' },
       { href: '/operaciones/importar-ventas', label: 'Importar ventas', icon: <TrendingUp size={32} />, desc: 'Historial de ventas desde DUX' },
+      { href: '/configuracion/dux', label: 'Sync DUX API', icon: <Zap size={32} />, desc: 'Sincronizar ventas automáticamente' },
     ] : []),
   ];
 
