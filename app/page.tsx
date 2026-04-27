@@ -8,7 +8,7 @@ import { createClient } from '@/lib/supabase/client';
 import {
   PackagePlus, DatabaseZap, TrendingUp, ShoppingCart,
   Scissors, ArrowRightLeft, Boxes, Tag, FileBarChart,
-  LogOut, Truck, Users, ClipboardList,
+  LogOut, Truck, Users, ClipboardList, Zap,
 } from 'lucide-react';
 
 export default function HomePage() {
