@@ -13,11 +13,22 @@ function duxFecha(iso: string): string {
   return `${d}${m}${y}`;
 }
 
-async function duxGet(endpoint: string) {
+function parsearFechaDux(fechaStr: string): string {
+  // DUX devuelve "Jun 2, 2025 3:00:00 AM" → necesitamos "2025-06-02"
+  try {
+    const d = new Date(fechaStr);
+    if (!isNaN(d.getTime())) {
+      return d.toISOString().split('T')[0];
+    }
+  } catch {}
+  return fechaStr.split('T')[0] || fechaStr;
+}
+
+async function duxGet(endpoint: string, offset = 0) {
   const token = process.env.DUX_TOKEN;
   const empresa = process.env.DUX_EMPRESA_ID;
   if (!token || !empresa) throw new Error('DUX_TOKEN o DUX_EMPRESA_ID no configurados en Vercel');
-  const url = `${DUX_BASE}${endpoint}&empresa_id=${empresa}`;
+  const url = `${DUX_BASE}${endpoint}&empresa_id=${empresa}&offset=${offset}&limit=100`;
   const res = await fetch(url, {
     headers: { 'authorization': token, 'accept': 'application/json' },
     cache: 'no-store',
@@ -31,40 +42,52 @@ export async function POST(req: NextRequest) {
     const { desde, hasta } = await req.json();
     if (!desde || !hasta) return NextResponse.json({ error: 'Requerido: desde, hasta' }, { status: 400 });
 
-    // Consultar facturas de venta a DUX
-    const facturas = await duxGet(`/facturas?tipo_comprobante=VENTA&fecha_desde=${duxFecha(desde)}&fecha_hasta=${duxFecha(hasta)}&`);
+    const duxDesde = duxFecha(desde);
+    const duxHasta = duxFecha(hasta);
+    const endpoint = `/facturas?fecha_desde=${duxDesde}&fecha_hasta=${duxHasta}&tipo_comp=FACTURA&`;
 
-    if (!Array.isArray(facturas) || facturas.length === 0) {
+    // Traer todas las páginas (DUX pagina de 100 en 100)
+    let todasFacturas: any[] = [];
+    let offset = 0;
+    let total = 1;
+
+    while (offset < total) {
+      const data = await duxGet(endpoint, offset);
+      total = data.paging?.total || 0;
+      const results = data.results || data || [];
+      if (!results.length) break;
+      todasFacturas = [...todasFacturas, ...results];
+      offset += results.length;
+      if (offset >= total) break;
+    }
+
+    if (!todasFacturas.length) {
       return NextResponse.json({ ok: true, insertados: 0, ventas: 0, mensaje: 'Sin ventas en ese período' });
     }
 
-    // Normalizar items desde la estructura de DUX
+    // Normalizar items desde la estructura real de DUX
     const rows: any[] = [];
-    for (const factura of facturas) {
-      // DUX puede devolver sucursal como string o id
-      const sucursalNombre = (factura.sucursal || factura.nombre_sucursal || '').toString().toLowerCase();
-      const sucursalId = sucursalNombre.includes('2') ? 2 : 1;
+    for (const factura of todasFacturas) {
+      const fecha = parsearFechaDux(factura.fecha_comp || factura.fecha || desde);
 
-      // La fecha puede venir en varios formatos
-      let fecha = desde;
-      if (factura.fecha) {
-        const f = factura.fecha.toString();
-        if (f.includes('/')) {
-          const [d, m, y] = f.split('/');
-          fecha = `${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`;
-        } else if (f.includes('-')) {
-          fecha = f.split('T')[0];
-        }
-      }
+      // Mapeo puntos de venta DUX → sucursal SOHO Stock
+      // 00004 = SOHO 1, 00007 = SOHO 2 (ecommerce), 00009 = SOHO 2, 00001 = ignorar
+      const ptoVta = String(factura.nro_pto_vta || '').replace(/^0+/, '');
+      if (ptoVta === '1') continue; // ignorar punto de venta original
+      const sucursalId = ptoVta === '4' ? 1 : 2;
 
-      const items = factura.items || factura.detalle || factura.articulos || [];
-      for (const item of items) {
-        const codigo = String(item.codigo || item.id_articulo || item.codigo_articulo || '').split('.')[0].trim();
-        const cantidad = Number(item.cantidad || 0);
+      const detalles = factura.detalles_json || factura.items || factura.detalle || [];
+      for (const item of detalles) {
+        // Estructura real DUX: cod_item = código, ctd = cantidad, item = descripción
+        const codigo = String(
+          item.cod_item || item.codigo_articulo || item.codigo || ''
+        ).split('.')[0].trim();
+        const cantidad = Number(item.ctd || item.cantidad || 0);
         if (!codigo || cantidad <= 0) continue;
+
         rows.push({
           codigo,
-          nombre: item.descripcion || item.nombre || '',
+          nombre: item.item || item.descripcion || item.nombre || '',
           sucursal_id: sucursalId,
           fecha,
           cantidad,
@@ -73,15 +96,20 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    if (rows.length === 0) {
-      return NextResponse.json({ ok: true, insertados: 0, ventas: facturas.length, mensaje: 'Sin items parseables en las facturas' });
+    if (!rows.length) {
+      return NextResponse.json({
+        ok: true, insertados: 0, ventas: todasFacturas.length,
+        mensaje: 'Facturas encontradas pero sin items parseables. Revisar estructura de detalles_json.'
+      });
     }
 
     // Resolver producto_ids
     const codigos = [...new Set(rows.map(r => r.codigo))];
     const { data: productos } = await supabase.from('productos').select('id, codigo').in('codigo', codigos);
     const mapProd = new Map((productos || []).map((p: any) => [p.codigo, p.id]));
-    const rowsConId = rows.map(r => ({ ...r, producto_id: mapProd.get(r.codigo) || null })).filter(r => r.producto_id);
+    const rowsConId = rows
+      .map(r => ({ ...r, producto_id: mapProd.get(r.codigo) || null }))
+      .filter(r => r.producto_id);
 
     // Borrar período anterior e insertar
     await supabase.from('ventas_historico').delete().gte('fecha', desde).lte('fecha', hasta);
@@ -90,11 +118,17 @@ export async function POST(req: NextRequest) {
     const BATCH = 500;
     for (let i = 0; i < rowsConId.length; i += BATCH) {
       const { error } = await supabase.from('ventas_historico').insert(rowsConId.slice(i, i + BATCH));
-      if (error) throw new Error(`Insert error: ${error.message}`);
+      if (error) throw new Error(`Insert: ${error.message}`);
       insertados += Math.min(BATCH, rowsConId.length - i);
     }
 
-    return NextResponse.json({ ok: true, insertados, ventas: facturas.length });
+    return NextResponse.json({
+      ok: true,
+      insertados,
+      ventas: todasFacturas.length,
+      sin_match: rows.length - rowsConId.length,
+    });
+
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
